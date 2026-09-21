@@ -93,6 +93,10 @@ pytest
 pytest --cov
 ```
 
+## Author
+
+Areeb Arshad | Data Science, Statistics, and Mathematics | Junior
+
 ## License
 
 MIT
