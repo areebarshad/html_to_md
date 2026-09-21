@@ -1,0 +1,55 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "html-to-md"
+version = "0.1.0"
+description = "Production-grade HTML to Markdown converter"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+keywords = ["html", "markdown", "converter", "commonmark"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Text Processing :: Markup :: HTML",
+    "Topic :: Text Processing :: Markup :: Markdown",
+]
+dependencies = [
+    "beautifulsoup4>=4.12",
+]
+
+[project.optional-dependencies]
+lxml = ["lxml>=5.0"]
+dev = [
+    "pytest>=8",
+    "pytest-cov>=5",
+    "lxml>=5.0",
+    "hatch",
+]
+
+[project.scripts]
+html2md = "html_to_md._cli:main"
+
+[project.urls]
+Repository = "https://github.com/placeholder/html-to-md"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/html_to_md"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--tb=short"
+
+[tool.coverage.run]
+source = ["src/html_to_md"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
