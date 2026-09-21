@@ -58,6 +58,30 @@ def main(argv: list[str] | None = None) -> int:
         metavar='NAME',
         help='BeautifulSoup parser: lxml (default if installed), html.parser, html5lib',
     )
+    parser.add_argument(
+        '--math',
+        choices=['latex', 'raw', 'strip'],
+        default='latex',
+        metavar='MODE',
+        help='Math rendering: latex (default), raw (verbatim MathML), or strip (drop)',
+    )
+    parser.add_argument(
+        '--assets',
+        default=None,
+        metavar='DIR',
+        help='Directory to extract base64 data: URI images into',
+    )
+    parser.add_argument(
+        '--asset-prefix',
+        default=None,
+        metavar='URL',
+        help='URL prefix for extracted assets in Markdown links (default: --assets value)',
+    )
+    parser.add_argument(
+        '--inline-images',
+        action='store_true',
+        help='Embed data: URI images inline instead of extracting them',
+    )
 
     args = parser.parse_args(argv)
 
@@ -68,6 +92,10 @@ def main(argv: list[str] | None = None) -> int:
         wrap_width=args.wrap,
         link_base_url=args.base_url,
         image_base_url=args.base_url,
+        math_style=args.math,
+        asset_dir=args.assets,
+        asset_url_prefix=args.asset_prefix,
+        keep_data_urls=args.inline_images,
     )
 
     converter = Converter(config=config, parser=args.parser)

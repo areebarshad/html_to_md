@@ -13,7 +13,7 @@
   <img src="https://img.shields.io/badge/python-3.9%2B-blue?style=flat-square" alt="Python 3.9+">
   <img src="https://img.shields.io/badge/CommonMark-strict-green?style=flat-square" alt="CommonMark">
   <img src="https://img.shields.io/badge/license-MIT-lightgrey?style=flat-square" alt="MIT license">
-  <img src="https://img.shields.io/badge/tests-115%20passed-brightgreen?style=flat-square" alt="115 tests">
+  <img src="https://img.shields.io/badge/tests-168%20passed-brightgreen?style=flat-square" alt="168 tests">
 </p>
 
 ---
@@ -31,6 +31,8 @@
 | 📝 **Footnotes** | `[^n]` reference-style definitions at document end |
 | 🏷️ **Headings** | ATX (`#`) or setext (underline) style |
 | 📋 **Rich elements** | Nested lists, blockquotes, definition lists, `<details>`, `<figure>` |
+| 🧮 **MathML → LaTeX** | Inline `$...$` and display `$$...$$` with annotation fast-path |
+| 🖼️ **Image extraction** | Decodes `data:` URI images to sidecar files, emits relative links |
 | 🧩 **XML support** | Auto-detects XML documents and uses the dedicated parser |
 | 🔄 **Thread-safe** | One `Converter` handles concurrent calls without shared state |
 
@@ -115,6 +117,56 @@ md = convert(
 )
 ```
 
+### MathML / equations
+
+`html-to-md` converts `<math>` elements to LaTeX notation by default.
+
+**Annotation fast-path** — MathJax and LaTeXML pages embed a `<annotation encoding="application/x-tex">` inside `<semantics>`.  When present, that string is used verbatim (always more accurate than structural reconstruction).
+
+**Structural walk** — for all other MathML, the converter walks `mi`, `mn`, `mo`, `mfrac`, `msub`, `msup`, `mover`, `munderover`, `mtable`, `mfenced` and more, mapping Unicode operators to LaTeX commands.
+
+```python
+from html_to_md import convert, ConversionConfig
+
+# Default: inline → $...$, display → $$...$$
+md = convert(html_with_mathml)
+
+# Custom delimiters (e.g. for MathJax \( \) / \[ \] style)
+cfg = ConversionConfig(
+    math_inline_delimiters=(r"\(", r"\)"),
+    math_block_delimiters=(r"\[", r"\]"),
+)
+md = convert(html_with_mathml, config=cfg)
+
+# Keep raw MathML (CommonMark HTML pass-through)
+cfg = ConversionConfig(math_style="raw")
+
+# Drop all math (legacy behaviour)
+cfg = ConversionConfig(math_style="strip")
+```
+
+### Embedded images (data: URIs)
+
+HTML pages from tools like Jupyter or lecture exporters often embed images as `data:` URIs.  By default these are replaced with `[image: alt]` placeholders.  Use `asset_dir` to extract them to files instead:
+
+```python
+from html_to_md import Converter, ConversionConfig
+
+cfg = ConversionConfig(
+    asset_dir="./assets",          # created automatically if missing
+    asset_url_prefix="./assets",   # used in the Markdown link (defaults to asset_dir)
+)
+md = Converter(config=cfg).convert_file("lecture.html")
+# Images extracted to ./assets/figure-1-1-abc12345.png etc.
+# Markdown contains: ![Figure 1.1](./assets/figure-1-1-abc12345.png)
+```
+
+To keep data URIs inline instead:
+
+```python
+cfg = ConversionConfig(keep_data_urls=True)
+```
+
 ### XML documents
 
 `html-to-md` automatically detects XML input (via `<?xml …>` declaration or
@@ -155,6 +207,14 @@ html2md page.html --selector "div.post-body" -o post.md
 # Setext headings + 80-column wrap
 html2md page.html --heading-style setext --wrap 80
 
+# Extract embedded images to an assets/ directory
+html2md lecture.html --assets ./assets -o lecture.md
+
+# Use \( \) / \[ \] math delimiters instead of $ $$
+html2md page.html --math latex    # default
+html2md page.html --math raw      # preserve MathML verbatim
+html2md page.html --math strip    # drop all math
+
 # All options
 html2md --help
 ```
@@ -172,7 +232,12 @@ html2md --help
 | `link_style` | `"inline" \| "reference"` | `"inline"` | Link format |
 | `image_base_url` | `str \| None` | `None` | Prepend to relative image `src` values |
 | `link_base_url` | `str \| None` | `None` | Prepend to relative `href` values |
-| `keep_data_urls` | `bool` | `False` | Preserve `data:` URI images |
+| `keep_data_urls` | `bool` | `False` | Preserve `data:` URI images inline |
+| `asset_dir` | `str \| None` | `None` | Extract `data:` URI images to this directory |
+| `asset_url_prefix` | `str \| None` | `None` | URL prefix for extracted image links (defaults to `asset_dir`) |
+| `math_style` | `"latex" \| "raw" \| "strip"` | `"latex"` | MathML rendering: LaTeX delimiters, raw HTML, or drop |
+| `math_inline_delimiters` | `tuple[str, str]` | `("$", "$")` | Open/close delimiters for inline math |
+| `math_block_delimiters` | `tuple[str, str]` | `("$$", "$$")` | Open/close delimiters for display math |
 | `code_language_classes` | `list[str]` | `["language-", "lang-", "highlight-"]` | Prefixes stripped from `<code class>` |
 | `fenced_code_char` | `"\`" \| "~"` | `` ` `` | Fence character for code blocks |
 | `wrap_width` | `int` | `0` | Wrap output at N columns (0 = off) |

@@ -7,6 +7,7 @@ from bs4 import NavigableString, Tag
 
 from .config import ConversionConfig
 from .handlers import blocks, code, inline, tables
+from .handlers import math as math_handler
 from .handlers.footnotes import FootnoteRegistry, handle_footnote_anchor, try_collect_footnote_definitions
 
 
@@ -27,6 +28,9 @@ class Walker:
         self.footnotes = FootnoteRegistry()
         self._link_refs: dict[str, tuple[str, str]] = {}  # ref_id → (url, title)
         self._link_ref_counter = 0
+        # Pending asset extractions: list of (relative_url_path, raw_bytes, content_type)
+        self._pending_assets: list[tuple[str, bytes, str]] = []
+        self._asset_counter = 0
 
     # ------------------------------------------------------------------
     # Public API
@@ -40,7 +44,42 @@ class Walker:
             md += self._render_link_refs()
         if self.footnotes:
             md += self.footnotes.render_definitions()
+        self._flush_assets()
         return md
+
+    def register_asset(self, data: bytes, content_type: str, alt: str) -> str:
+        """
+        Register a decoded data-URI payload for later disk write.
+
+        Returns the relative URL path that should be used in the Markdown link.
+        """
+        import hashlib
+
+        ext = _content_type_to_ext(content_type)
+        slug = _slugify(alt)[:40] or "image"
+        # Use a short content hash so re-runs are stable and collisions vanish.
+        digest = hashlib.sha1(data).hexdigest()[:8]
+        filename = f"{slug}-{digest}{ext}"
+
+        asset_url_prefix = self.config.asset_url_prefix or self.config.asset_dir or "assets"
+        # Normalise to forward slashes for the Markdown link
+        prefix = asset_url_prefix.rstrip("/\\").replace("\\", "/")
+        url_path = f"{prefix}/{filename}"
+
+        self._pending_assets.append((filename, data, content_type))
+        return url_path
+
+    def _flush_assets(self) -> None:
+        """Write collected asset files to disk if asset_dir is configured."""
+        if not self._pending_assets or not self.config.asset_dir:
+            return
+        import os
+        os.makedirs(self.config.asset_dir, exist_ok=True)
+        for filename, data, _ in self._pending_assets:
+            dest = os.path.join(self.config.asset_dir, filename)
+            with open(dest, "wb") as fh:
+                fh.write(data)
+        self._pending_assets.clear()
 
     def convert_children(self, node: Tag) -> str:
         parts: list[str] = []
@@ -122,6 +161,10 @@ class Walker:
         if name == 'a':
             return self._handle_a(node)
 
+        # ---- Math -----------------------------------------------------
+        if name == 'math':
+            return math_handler.handle_math(node, self)
+
         # ---- Semantic / pass-through ----------------------------------
         if name in ('span', 'label', 'time', 'mark', 'cite', 'q',
                     'li', 'dt', 'dd', 'figcaption', 'summary',
@@ -137,7 +180,7 @@ class Walker:
                     'input', 'button', 'select', 'option', 'optgroup',
                     'textarea', 'form', 'fieldset', 'legend',
                     'datalist', 'output', 'progress', 'meter',
-                    'canvas', 'svg', 'math',
+                    'canvas', 'svg',
                     '[document]'):
             return ''
 
@@ -222,8 +265,36 @@ def _wrap_text(text: str, width: int) -> str:
     import textwrap
     lines = []
     for line in text.splitlines():
-        if len(line) <= width or line.startswith(('    ', '\t', '|', '>', '#', '`', '-', '*', '+')):
+        if len(line) <= width or line.startswith(('    ', '\t', '|', '>', '#', '`', '-', '*', '+', '$$', '\\[')):
             lines.append(line)
         else:
             lines.extend(textwrap.wrap(line, width))
     return '\n'.join(lines) + '\n'
+
+
+_EXT_MAP: dict[str, str] = {
+    "image/png": ".png",
+    "image/jpeg": ".jpg",
+    "image/jpg": ".jpg",
+    "image/gif": ".gif",
+    "image/webp": ".webp",
+    "image/svg+xml": ".svg",
+    "image/bmp": ".bmp",
+    "image/tiff": ".tiff",
+}
+
+
+def _content_type_to_ext(content_type: str) -> str:
+    """Return a file extension for a MIME type, defaulting to .bin."""
+    base = content_type.split(";")[0].strip().lower()
+    return _EXT_MAP.get(base, ".bin")
+
+
+def _slugify(text: str) -> str:
+    """Convert arbitrary text to a safe filename slug."""
+    import unicodedata
+    text = unicodedata.normalize("NFKD", text)
+    text = text.encode("ascii", "ignore").decode("ascii")
+    text = re.sub(r"[^\w\s-]", "", text.lower())
+    text = re.sub(r"[\s_-]+", "-", text)
+    return text.strip("-")

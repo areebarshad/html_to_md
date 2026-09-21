@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Sequence
+from typing import Sequence, Tuple
 
 
 @dataclass
@@ -61,6 +61,21 @@ class ConversionConfig:
     keep_data_urls: bool = False
     """When *False*, ``data:`` URI images are replaced with a placeholder."""
 
+    asset_dir: str | None = None
+    """
+    Directory where extracted ``data:`` URI images are written.
+    When set, base64 image data is decoded and saved to this directory;
+    the Markdown references the file by a relative path.
+    When *None*, ``data:`` URIs fall back to ``keep_data_urls`` behaviour.
+    """
+
+    asset_url_prefix: str | None = None
+    """
+    URL prefix written into the Markdown ``![alt](prefix/file.png)`` link.
+    Defaults to ``asset_dir`` when *None*.
+    Useful when the assets directory is served at a different path.
+    """
+
     # --- Code blocks ---
     code_language_classes: Sequence[str] = field(
         default_factory=lambda: ["language-", "lang-", "highlight-"]
@@ -69,6 +84,29 @@ class ConversionConfig:
 
     fenced_code_char: str = "`"
     """Character used for fenced code blocks: ``'`'`` or ``'~'``."""
+
+    # --- Math ---
+    math_style: str = "latex"
+    """
+    How ``<math>`` elements are rendered.
+
+    ``"latex"``
+        MathML is translated to LaTeX delimiters: inline ``$...$``,
+        display ``$$...$$``.  An ``<annotation encoding="application/x-tex">``
+        child is used verbatim when present.
+    ``"raw"``
+        The ``<math>`` element is emitted verbatim as an HTML block
+        (CommonMark raw-HTML pass-through).
+    ``"strip"``
+        The ``<math>`` element and all its children are dropped (legacy
+        behaviour).
+    """
+
+    math_inline_delimiters: Tuple[str, str] = ("$", "$")
+    """Open/close delimiters for inline math.  Default ``("$", "$")``."""
+
+    math_block_delimiters: Tuple[str, str] = ("$$", "$$")
+    """Open/close delimiters for display/block math.  Default ``("$$", "$$")``."""
 
     # --- Tables ---
     table_column_separator: str = " | "
@@ -106,6 +144,12 @@ class ConversionConfig:
             raise ValueError(f"fenced_code_char must be '`' or '~', got {self.fenced_code_char!r}")
         if self.newlines_between_blocks < 1:
             raise ValueError("newlines_between_blocks must be >= 1")
+        if self.math_style not in ("latex", "raw", "strip"):
+            raise ValueError(f"math_style must be 'latex', 'raw', or 'strip', got {self.math_style!r}")
+        if len(self.math_inline_delimiters) != 2:
+            raise ValueError("math_inline_delimiters must be a 2-tuple of (open, close)")
+        if len(self.math_block_delimiters) != 2:
+            raise ValueError("math_block_delimiters must be a 2-tuple of (open, close)")
 
 
 DEFAULT_CONFIG = ConversionConfig()

@@ -86,15 +86,47 @@ def handle_img(node: Tag, walker: Walker) -> str:
     src = str(node.get('src', ''))
     title = node.get('title', '')
 
-    if src.startswith('data:') and not walker.config.keep_data_urls:
-        src = ''
+    if src.startswith('data:'):
+        if walker.config.keep_data_urls:
+            pass  # embed as-is
+        elif walker.config.asset_dir is not None:
+            src = _extract_data_uri(src, str(alt), walker)
+        else:
+            src = ''
 
     if not src:
         return f'[image: {escape_markdown(str(alt))}]'
 
-    src = _resolve_url(src, walker.config.image_base_url)
+    if not src.startswith('data:'):
+        src = _resolve_url(src, walker.config.image_base_url)
     title_part = f' "{_escape_title(str(title))}"' if title else ''
     return f'![{escape_markdown(str(alt))}]({src}{title_part})'
+
+
+def _extract_data_uri(data_uri: str, alt: str, walker: Walker) -> str:
+    """
+    Decode a ``data:`` URI, register it for disk write, and return
+    the relative URL path to embed in the Markdown.
+
+    Returns an empty string on any parse or decode error (falls back to
+    the ``[image: alt]`` placeholder).
+    """
+    import base64
+
+    try:
+        # data:[<mediatype>][;base64],<data>
+        header, _, payload = data_uri.partition(',')
+        header = header[len('data:'):]  # strip "data:"
+        is_base64 = header.endswith(';base64')
+        content_type = header.rstrip(';base64').strip() or 'image/png'
+        if is_base64:
+            raw = base64.b64decode(payload)
+        else:
+            import urllib.parse
+            raw = urllib.parse.unquote_to_bytes(payload)
+        return walker.register_asset(raw, content_type, alt)
+    except Exception:
+        return ''
 
 
 def handle_br(node: Tag, walker: Walker) -> str:
