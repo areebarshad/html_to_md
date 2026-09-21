@@ -20,9 +20,20 @@ _XML_SNIFF = re.compile(
     re.MULTILINE,
 )
 
+# XHTML documents declare themselves via their DOCTYPE.  They are valid XML
+# but browsers (and lxml's HTML parser) handle them fine as HTML, while
+# lxml's strict XML parser can silently drop the <body> when namespace
+# resolution fails, leaving only the Doctype string as output.
+_XHTML_DOCTYPE_RE = re.compile(
+    rb'<!DOCTYPE\s+html\b[^>]*?(?:XHTML|xhtml)',
+    re.DOTALL | re.IGNORECASE,
+)
+
 
 def _looks_like_xml(html: str | bytes) -> bool:
-    sample = html[:1024].encode('utf-8', errors='replace') if isinstance(html, str) else html[:1024]
+    sample = html[:2048].encode('utf-8', errors='replace') if isinstance(html, str) else html[:2048]
+    if _XHTML_DOCTYPE_RE.search(sample):
+        return False  # XHTML is better handled by the HTML parser
     return bool(_XML_SNIFF.search(sample))
 
 

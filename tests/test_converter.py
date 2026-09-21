@@ -116,6 +116,38 @@ class TestWrapWidth:
             assert len(line) <= 65  # some slack for edge words
 
 
+class TestXHTMLFixture:
+    """XHTML 1.0 Strict documents must not produce only the DOCTYPE fragment."""
+
+    def test_body_content_extracted(self):
+        html = (FIXTURES / 'xhtml_page.html').read_text(encoding='utf-8')
+        result = Converter().convert(html)
+        assert 'Linear Regression' in result
+
+    def test_headings_present(self):
+        html = (FIXTURES / 'xhtml_page.html').read_text(encoding='utf-8')
+        result = Converter().convert(html)
+        assert '## Model Definition' in result
+        assert '## Assumptions' in result
+
+    def test_inline_markup_preserved(self):
+        html = (FIXTURES / 'xhtml_page.html').read_text(encoding='utf-8')
+        result = Converter().convert(html)
+        assert '**zero mean**' in result
+        assert '*variance*' in result
+
+    def test_code_block_preserved(self):
+        html = (FIXTURES / 'xhtml_page.html').read_text(encoding='utf-8')
+        result = Converter().convert(html)
+        assert 'lm(Y ~ X' in result
+
+    def test_doctype_text_not_in_output(self):
+        html = (FIXTURES / 'xhtml_page.html').read_text(encoding='utf-8')
+        result = Converter().convert(html)
+        assert 'W3C' not in result
+        assert 'xhtml1-strict' not in result
+
+
 class TestOutputCleanness:
     def test_no_ai_mentions_in_output(self):
         result = convert('<p>Hello</p>')
