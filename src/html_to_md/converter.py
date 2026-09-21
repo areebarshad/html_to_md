@@ -1,22 +1,57 @@
 from __future__ import annotations
 
+import re
+import warnings
+
 from bs4 import BeautifulSoup
+
+try:
+    from bs4 import XMLParsedAsHTMLWarning as _XMLWarn
+except ImportError:  # bs4 < 4.11
+    _XMLWarn = None  # type: ignore[assignment,misc]
 
 from .config import ConversionConfig, DEFAULT_CONFIG
 from .extractor import extract_content
 from ._walker import Walker
 
+# Matches <?xml …> declarations or root elements with xmlns attributes.
+_XML_SNIFF = re.compile(
+    rb'^\s*<\?xml[\s>]|<[A-Za-z][^>]*\sxmlns[=:]',
+    re.MULTILINE,
+)
+
+
+def _looks_like_xml(html: str | bytes) -> bool:
+    sample = html[:1024].encode('utf-8', errors='replace') if isinstance(html, str) else html[:1024]
+    return bool(_XML_SNIFF.search(sample))
+
+
+def _lxml_available() -> bool:
+    try:
+        import lxml  # noqa: F401
+        return True
+    except ImportError:
+        return False
+
 
 def _make_soup(html: str | bytes, parser: str) -> BeautifulSoup:
+    # Use the dedicated XML parser for XML documents when lxml is present.
+    if _looks_like_xml(html) and _lxml_available():
+        return BeautifulSoup(html, features='xml')
+
+    # Silence the XMLParsedAsHTMLWarning for edge-case XML fed to an HTML parser.
+    if _XMLWarn is not None:
+        with warnings.catch_warnings():
+            warnings.filterwarnings('ignore', category=_XMLWarn)
+            return BeautifulSoup(html, parser)
+
     return BeautifulSoup(html, parser)
 
 
 def _choose_parser() -> str:
-    try:
-        import lxml  # noqa: F401
+    if _lxml_available():
         return 'lxml'
-    except ImportError:
-        return 'html.parser'
+    return 'html.parser'
 
 
 class Converter:
