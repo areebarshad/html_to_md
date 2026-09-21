@@ -194,6 +194,10 @@ pytest
 pytest --cov=html_to_md --cov-report=term-missing
 ```
 
+## Author
+
+Areeb Arshad | Data Science, Statistics, and Mathematics @ Virginia Tech 
+
 ## 📄 License
 
 MIT
