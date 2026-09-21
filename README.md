@@ -194,10 +194,6 @@ pytest
 pytest --cov=html_to_md --cov-report=term-missing
 ```
 
-**Stack:** `beautifulsoup4` · `lxml` (optional) · `pytest` · `hatch`
-
----
-
 ## 📄 License
 
 MIT
